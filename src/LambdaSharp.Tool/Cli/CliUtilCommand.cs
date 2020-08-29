@@ -72,6 +72,7 @@ namespace LambdaSharp.Tool.Cli {
 
         //--- Class Fields ---
         private static HttpClient _httpClient = new HttpClient();
+        private static readonly char[] SEPARATORS = new[] { '\r', '\n' };
 
         //--- Methods --
         public void Register(CommandLineApplication app) {
@@ -82,7 +83,7 @@ namespace LambdaSharp.Tool.Cli {
                 // delete orphaned logs sub-command
                 cmd.Command("delete-orphan-logs", subCmd => {
                     subCmd.HelpOption();
-                    subCmd.Description = "Delete orphaned Lambda and API Gateway V1/V2 CloudWatch logs";
+                    subCmd.Description = "Delete orphaned Lambda and API Gateway CloudWatch logs";
                     var dryRunOption = subCmd.Option("--dryrun", "(optional) Check which logs to delete without deleting them", CommandOptionType.NoValue);
                     var awsProfileOption = subCmd.Option("--aws-profile|-P <NAME>", "(optional) Use a specific AWS profile from the AWS credentials file", CommandOptionType.SingleValue);
                     var awsRegionOption = subCmd.Option("--aws-region <NAME>", "(optional) Use a specific AWS region (default: read from AWS profile)", CommandOptionType.SingleValue);
@@ -146,7 +147,7 @@ namespace LambdaSharp.Tool.Cli {
 
                         // validate options
                         if(directoryOption.Value() == null) {
-                            LogError("missing --assembly option");
+                            LogError("missing --directory option");
                             return;
                         }
                         if(!methodOption.Values.Any()) {
@@ -1075,8 +1076,8 @@ namespace LambdaSharp.Tool.Cli {
                     using(var destinationStream = new MemoryStream()) {
                         await decompressionStream.CopyToAsync(destinationStream);
                         return Encoding.UTF8.GetString(destinationStream.ToArray())
-                            .Split('\r', StringSplitOptions.RemoveEmptyEntries)
-                            .Select(json => JsonConvert.DeserializeObject<KinesisFailedLogRecord>(json));
+                            .Split(SEPARATORS, StringSplitOptions.RemoveEmptyEntries)
+                            .Select(json => JsonConvert.DeserializeObject<KinesisFailedLogRecord>(json.Trim()));
                     }
                 } catch(AmazonS3Exception) {
                     return null;
