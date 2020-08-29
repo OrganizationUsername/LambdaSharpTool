@@ -163,7 +163,7 @@ namespace LambdaSharp.Tool.Cli {
                     });
                 });
 
-                // delete orphaned logs sub-command
+                // list lambda sub-command
                 cmd.Command("list-lambdas", subCmd => {
                     subCmd.HelpOption();
                     subCmd.Description = "List all Lambda functions by CloudFormation stack";
@@ -657,7 +657,7 @@ namespace LambdaSharp.Tool.Cli {
                         RequestContentType = requestSchemaAndContentType?.Item2,
                         RequestSchema = requestSchemaAndContentType?.Item1,
                         RequestSchemaName = requestParameter?.ParameterType.FullName,
-                        UriParameters  = uriParameters.Any() ? new Dictionary<string, bool>(uriParameters) : null,
+                        UriParameters = uriParameters.Any() ? new Dictionary<string, bool>(uriParameters) : null,
                         ResponseContentType = responseSchemaAndContentType?.Item2,
                         ResponseSchema = responseSchemaAndContentType?.Item1,
                         ResponseSchemaName = responseType?.FullName
@@ -784,21 +784,20 @@ namespace LambdaSharp.Tool.Cli {
 
             // fetch most recent CloudWatch log stream for each Lambda function
             var logStreamsTask = Task.Run(async () => (await Task.WhenAll(globalFunctions.Select(async kv => {
-                    try {
-                        var response = await logsClient.DescribeLogStreamsAsync(new DescribeLogStreamsRequest {
-                            Descending = true,
-                            LogGroupName = $"/aws/lambda/{kv.Value.FunctionName}",
-                            OrderBy = OrderBy.LastEventTime,
-                            Limit = 1
-                        });
-                        return (Name: kv.Value.FunctionName, Streams: response.LogStreams.FirstOrDefault());
-                    } catch {
+                try {
+                    var response = await logsClient.DescribeLogStreamsAsync(new DescribeLogStreamsRequest {
+                        Descending = true,
+                        LogGroupName = $"/aws/lambda/{kv.Value.FunctionName}",
+                        OrderBy = OrderBy.LastEventTime,
+                        Limit = 1
+                    });
+                    return (Name: kv.Value.FunctionName, Streams: response.LogStreams.FirstOrDefault());
+                } catch {
 
-                        // log group doesn't exist
-                        return (Name: kv.Value.FunctionName, Streams: null);
-                    }
-                }))).ToDictionary(tuple => tuple.Name, tuple => tuple.Streams)
-            );
+                    // log group doesn't exist
+                    return (Name: kv.Value.FunctionName, Streams: null);
+                }
+            }))).ToDictionary(tuple => tuple.Name, tuple => tuple.Streams));
 
             // fetch all functions belonging to a CloudFormation stack
             var stacksWithFunctionsTask = Task.Run(async () => stacks.Zip(
@@ -921,7 +920,7 @@ namespace LambdaSharp.Tool.Cli {
                         var response = await cfnClient.ListStackResourcesAsync(request);
                         result.AddRange(
                             response.StackResourceSummaries
-                                .Where(resourceSummary => resourceSummary.ResourceType  == "AWS::Lambda::Function")
+                                .Where(resourceSummary => resourceSummary.ResourceType == "AWS::Lambda::Function")
                                 .Select(summary => {
                                     globalFunctions.TryGetValue(summary.PhysicalResourceId, out var configuration);
                                     return (Name: summary.LogicalResourceId, Configuration: configuration);
