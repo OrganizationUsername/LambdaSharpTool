@@ -181,6 +181,43 @@ namespace LambdaSharp.Tool.Cli {
                     });
                 });
 
+                // list modules
+                cmd.Command("list-modules", subCmd => {
+                    subCmd.HelpOption();
+                    subCmd.Description = "List all modules at origin";
+                    var originOption = subCmd.Option("--origin <ORIGIN>", "Set module origin", CommandOptionType.SingleValue);
+                    var bucketOption = subCmd.Option("--bucket <BUCKETNAME>", "Set S3 bucket name", CommandOptionType.SingleValue);
+                    var preReleaseOption = subCmd.Option("--include-unstable", "Include unstable releases", CommandOptionType.NoValue);
+                    var originArgument = subCmd.Argument("<ORIGIN>", "origin S3 bucket name", multipleValues: false);
+                    var initSettingsCallback = CreateSettingsInitializer(subCmd);
+                    AddStandardCommandOptions(subCmd);
+
+                    // run command
+                    subCmd.OnExecute(async () => {
+                        ExecuteCommandActions(subCmd);
+                        var settings = await initSettingsCallback();
+                        if(settings == null) {
+                            return;
+                        }
+                        if(
+                            !originOption.HasValue()
+                            && !bucketOption.HasValue()
+                            && string.IsNullOrEmpty(originArgument.Value)
+                        ) {
+                            Program.ShowHelp = true;
+                            Console.WriteLine(subCmd.GetHelpText());
+                            return;
+                        }
+                        await ListModulesAsync(
+                            settings,
+                            originArgument.Value,
+                            bucketOption.Value(),
+                            originOption.Value(),
+                            preReleaseOption.HasValue()
+                        );
+                    });
+                });
+
                 // validate assembly as Lambda function
                 cmd.Command("validate-assembly", subCmd => {
                     subCmd.HelpOption();
@@ -1090,6 +1127,37 @@ namespace LambdaSharp.Tool.Cli {
                     await decompressionStream.CopyToAsync(destinationStram);
                     return Encoding.UTF8.GetString(destinationStram.ToArray());
                 }
+            }
+        }
+
+        public async Task ListModulesAsync(Settings settings, string lookupValue, string bucketName, string origin, bool includePreRelease) {
+            Console.WriteLine();
+
+            // check if lookup value is a module reference
+            if(ModuleInfo.TryParse(lookupValue, out var moduleInfo)) {
+                bucketName ??= moduleInfo.Origin;
+                origin ??= moduleInfo.Origin;
+            } else {
+
+                // use lookup value a default for bucket and origin unless explicitly provided
+                bucketName ??= lookupValue;
+                origin ??= lookupValue;
+            }
+
+            // list all modules at bucket
+            var moduleLocations = await new ModelManifestLoader(settings, "cmd-line").ListManifestsAsync(bucketName, origin, includePreRelease);
+            if(moduleLocations.Any()) {
+                foreach(var moduleGroup in moduleLocations
+                    .Where(moduleLocation => (moduleInfo == null) || (moduleLocation.ModuleInfo.FullName == moduleInfo.FullName))
+                    .GroupBy(moduleLocation => moduleLocation.ModuleInfo.FullName)
+                    .OrderBy(group => group.Key)
+                ) {
+                    var versions = moduleGroup.Select(moduleLocation => moduleLocation.ModuleInfo.Version).ToList();
+                    versions.Sort(new VersionInfoComparer());
+                    Console.WriteLine($"{moduleGroup.Key}: {string.Join(", ", versions.Select(version => $"{Settings.InfoColor}{version}{Settings.ResetColor}"))}");
+                }
+            } else {
+                Console.WriteLine("no modules found");
             }
         }
     }

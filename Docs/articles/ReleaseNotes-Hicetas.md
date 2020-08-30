@@ -143,8 +143,18 @@ Part of this release, _LambdaSharp.Core_ functions were ported to .NET Core 3.1 
 
 ### (v0.8.0.9) - TBD
 
+#### Features
+
 * CLI
-  * Fixed an issue in util show-kinesis-failed-logs where logs with multiple entries were not parsed properly.
+  * Added `util list-modules` command to list published modules and versions.
+
+#### Fixes
+
+* CLI
+  * Fixed an issue in `util show-kinesis-failed-logs` where logs with multiple entries were not parsed properly.
+  * Fixed an issue where a _Finalizer_ would not run when only stack parameters are changed.
+  * Fixed an issue with resource timings being updated twice.
+  * Fixed an issue where the single-quote character (') was incorrectly escaped by some API Gateway integrations.
 
 ### (v0.8.0.8) - 2020-08-03
 

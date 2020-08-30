@@ -507,6 +507,54 @@ namespace LambdaSharp.Tool {
             return null;
         }
 
+        public async Task<IEnumerable<ModuleLocation>> ListManifestsAsync(string bucketName, string origin, bool includePreRelease = false) {
+            var stopwatch = Stopwatch.StartNew();
+            try {
+                var s3Client = await GetS3ClientByBucketNameAsync(bucketName);
+                if(s3Client == null) {
+
+                    // nothing to do; GetS3ClientByBucketName already emitted an error
+                    return null;
+                }
+
+                // enumerate versions in bucket
+                var moduleLocations = new List<ModuleLocation>();
+                var request = new ListObjectsRequest {
+                    BucketName = bucketName,
+                    MaxKeys = 1_000,
+                    Prefix = $"{origin}/",
+                    RequestPayer = RequestPayer.Requester
+                };
+                do {
+                    try {
+                        var response = await s3Client.ListObjectsAsync(request);
+                        foreach(var entry in response.S3Objects) {
+
+                            // check if key has the right format
+                            var parts = entry.Key.Split('/');
+                            if(
+                                (parts.Length != 4)
+                                || (parts[0] != origin)
+                                || !VersionInfo.TryParse(parts[3], out var version)
+                                || version.IsPreRelease
+                            ) {
+                                continue;
+                            }
+
+                            // convert key to module info
+                            moduleLocations.Add(new ModuleLocation(bucketName, new ModuleInfo(parts[1], parts[2], version, origin), hash: "00000000000000000000000000000000"));
+                        }
+                        request.Marker = response.NextMarker;
+                    } catch(AmazonS3Exception e) when(e.Message == "Access Denied") {
+                        break;
+                    }
+                } while(request.Marker != null);
+                return moduleLocations;
+            } finally {
+                LogInfoPerformance($"ListManifests() for s3://{origin}", stopwatch.Elapsed);
+            }
+        }
+
         private async Task<string> GetS3ObjectContentsAsync(string bucketName, string key) {
             var stopwatch = Stopwatch.StartNew();
             try {
