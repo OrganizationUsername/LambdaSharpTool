@@ -542,7 +542,7 @@ namespace LambdaSharp.Tool {
                                 (parts.Length != 4)
                                 || (parts[0] != origin)
                                 || !VersionInfo.TryParse(parts[3], out var version)
-                                || version.IsPreRelease
+                                || (!includePreRelease && version.IsPreRelease)
                             ) {
                                 continue;
                             }

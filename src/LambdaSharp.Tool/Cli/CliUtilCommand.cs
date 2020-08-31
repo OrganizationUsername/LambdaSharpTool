@@ -185,9 +185,9 @@ namespace LambdaSharp.Tool.Cli {
                 cmd.Command("list-modules", subCmd => {
                     subCmd.HelpOption();
                     subCmd.Description = "List all modules at origin";
-                    var originOption = subCmd.Option("--origin <ORIGIN>", "Set module origin", CommandOptionType.SingleValue);
-                    var bucketOption = subCmd.Option("--bucket <BUCKETNAME>", "Set S3 bucket name", CommandOptionType.SingleValue);
-                    var preReleaseOption = subCmd.Option("--include-unstable", "Include unstable releases", CommandOptionType.NoValue);
+                    var bucketOption = subCmd.Option("--bucket <BUCKETNAME>", "(optional) List modules from this S3 bucket (default: match argument)", CommandOptionType.SingleValue);
+                    var originOption = subCmd.Option("--origin <ORIGIN>", "(optional) List modules from this origin (default: match argument)", CommandOptionType.SingleValue);
+                    var preReleaseOption = subCmd.Option("--include-prerelease", "(optional) Show pre-releases versions (default: omit pre-release versions)", CommandOptionType.NoValue);
                     var originArgument = subCmd.Argument("<ORIGIN>", "origin S3 bucket name", multipleValues: false);
                     var initSettingsCallback = CreateSettingsInitializer(subCmd);
                     AddStandardCommandOptions(subCmd);
