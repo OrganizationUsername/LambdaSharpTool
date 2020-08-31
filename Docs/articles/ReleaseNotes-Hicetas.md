@@ -147,6 +147,7 @@ Part of this release, _LambdaSharp.Core_ functions were ported to .NET Core 3.1 
 
 * CLI
   * Added `util list-modules` command to list published modules and versions.
+  * Added `--build-policy` option for `build`, `publish`, and `deploy` commands to control which module dependencies are allowed during the build phase.
 
 #### Fixes
 
