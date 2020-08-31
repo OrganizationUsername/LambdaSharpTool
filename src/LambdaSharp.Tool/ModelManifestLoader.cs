@@ -242,27 +242,33 @@ namespace LambdaSharp.Tool {
                 //  module version constraint.
                 if((dependencyType == ModuleManifestDependencyType.Nested) && (moduleInfo.Version != null)) {
                     found = found.Where(version => {
-                        var result = version.MatchesConstraint(moduleInfo.Version);
-                        if(!result) {
+                        if(!version.MatchesConstraint(moduleInfo.Version)) {
                             LogInfoVerbose($"... rejected v{version}: does not match version constraint {moduleInfo.Version}");
+                            return false;
                         }
-                        return result;
+                        return true;
                     }).ToList();
                 }
 
                 // attempt to identify the newest module version compatible with the tool
                 ModuleManifest manifest = null;
-                var match = VersionInfo.FindLatestMatchingVersion(found, moduleInfo.Version, candidate => {
-                    var candidateModuleInfo = new ModuleInfo(moduleInfo.Namespace, moduleInfo.Name, candidate, moduleInfo.Origin);
-                    var candidateManifestText = GetS3ObjectContentsAsync(bucketName, candidateModuleInfo.VersionPath).GetAwaiter().GetResult();
-                    manifest = JsonConvert.DeserializeObject<ModuleManifest>(candidateManifestText);
+                var match = VersionInfo.FindLatestMatchingVersion(found, moduleInfo.Version, candidateVersion => {
+                    var candidateModuleInfo = new ModuleInfo(moduleInfo.Namespace, moduleInfo.Name, candidateVersion, moduleInfo.Origin);
+
+                    // check if the module version is allowed by the build policy
+                    if(!(Settings.BuildPolicy?.Modules?.Allow?.Contains(candidateModuleInfo.ToString()) ?? true)) {
+                        LogInfoVerbose($"... rejected v{candidateVersion}: not allowed by build policy");
+                        return false;
+                    }
 
                     // check if module is compatible with this tool
-                    var result = manifest.CoreServicesVersion.IsCoreServicesCompatible(Settings.ToolVersion);
-                    if(!result) {
-                        LogInfoVerbose($"... rejected v{candidate}: it not compatible with tool version {Settings.ToolVersion}");
+                    var candidateManifestText = GetS3ObjectContentsAsync(bucketName, candidateModuleInfo.VersionPath).GetAwaiter().GetResult();
+                    manifest = JsonConvert.DeserializeObject<ModuleManifest>(candidateManifestText);
+                    if(!manifest.CoreServicesVersion.IsCoreServicesCompatible(Settings.ToolVersion)) {
+                        LogInfoVerbose($"... rejected v{candidateVersion}: not compatible with tool version {Settings.ToolVersion}");
+                        return false;
                     }
-                    return result;
+                    return true;
                 });
                 return (Origin: bucketName, Version: match, Manifest: manifest);
             }
