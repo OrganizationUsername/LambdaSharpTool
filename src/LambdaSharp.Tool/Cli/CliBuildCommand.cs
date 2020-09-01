@@ -153,7 +153,8 @@ namespace LambdaSharp.Tool.Cli {
                     }
 
                     // check if a build policy is supplied
-                    if(!await LoadBuildPolicyAsync(buildPolicyOption, settings)) {
+                    var (buildPolicySuccess, buildPolicy) = await LoadBuildPolicyAsync(buildPolicyOption);
+                    if(!buildPolicySuccess) {
                         return;
                     }
 
@@ -183,7 +184,8 @@ namespace LambdaSharp.Tool.Cli {
                             selectorOption.Value(),
                             moduleSource,
                             moduleVersion,
-                            forceBuildOption.HasValue()
+                            forceBuildOption.HasValue(),
+                            buildPolicy
                         )) {
                             break;
                         }
@@ -263,7 +265,8 @@ namespace LambdaSharp.Tool.Cli {
                     }
 
                     // check if a build policy is supplied
-                    if(!await LoadBuildPolicyAsync(buildPolicyOption, settings)) {
+                    var (buildPolicySuccess, buildPolicy) = await LoadBuildPolicyAsync(buildPolicyOption);
+                    if(!buildPolicySuccess) {
                         return;
                     }
 
@@ -311,7 +314,8 @@ namespace LambdaSharp.Tool.Cli {
                                 selectorOption.Value(),
                                 moduleSource,
                                 moduleVersion,
-                                forceBuildOption.HasValue()
+                                forceBuildOption.HasValue(),
+                                buildPolicy
                             )) {
                                 break;
                             }
@@ -422,7 +426,8 @@ namespace LambdaSharp.Tool.Cli {
                     }
 
                     // check if a build policy is supplied
-                    if(!await LoadBuildPolicyAsync(buildPolicyOption, settings)) {
+                    var (buildPolicySuccess, buildPolicy) = await LoadBuildPolicyAsync(buildPolicyOption);
+                    if(!buildPolicySuccess) {
                         return;
                     }
 
@@ -474,7 +479,8 @@ namespace LambdaSharp.Tool.Cli {
                                 selectorOption.Value(),
                                 moduleSource,
                                 moduleVersion,
-                                forceBuildOption.HasValue()
+                                forceBuildOption.HasValue(),
+                                buildPolicy
                             )) {
                                 break;
                             }
@@ -525,12 +531,16 @@ namespace LambdaSharp.Tool.Cli {
             string selector,
             string moduleSource,
             VersionInfo moduleVersion,
-            bool forceBuild
+            bool forceBuild,
+            BuildPolicy buildPolicy
         ) {
             try {
                 if(!await PopulateDeploymentTierSettingsAsync(settings, allowCaching: true)) {
                     return false;
                 }
+
+                // set build policy
+                settings.BuildPolicy = buildPolicy;
                 return await new BuildStep(settings, moduleSource).DoAsync(
                     outputCloudFormationFilePath,
                     noAssemblyValidation,
@@ -545,6 +555,10 @@ namespace LambdaSharp.Tool.Cli {
             } catch(Exception e) {
                 LogError(e);
                 return false;
+            } finally {
+
+                // always make sure to remove build policy
+                settings.BuildPolicy = null;
             }
         }
 
@@ -624,23 +638,24 @@ namespace LambdaSharp.Tool.Cli {
             return result;
         }
 
-        private async Task<bool> LoadBuildPolicyAsync(CommandOption buildPolicyOption, Settings settings) {
+        private async Task<(bool Success, BuildPolicy BuildPolicy)> LoadBuildPolicyAsync(CommandOption buildPolicyOption) {
+            BuildPolicy buildPolicy = null;
             if(buildPolicyOption.HasValue()) {
                 string buildPolicyText;
                 try {
                     buildPolicyText = await File.ReadAllTextAsync(Path.Combine(Directory.GetCurrentDirectory(), buildPolicyOption.Value()));
                 } catch(IOException) {
                     LogError("could not open build policy document");
-                    return false;
+                    return (Success: false, BuildPolicy: null);
                 }
                 try {
-                    settings.BuildPolicy = JsonSerializer.Deserialize<BuildPolicy>(buildPolicyText);
+                    buildPolicy = JsonSerializer.Deserialize<BuildPolicy>(buildPolicyText);
                 } catch(JsonException) {
                     LogError("unable to parse build policy document");
-                    return false;
+                    return (Success: false, BuildPolicy: null);
                 }
             }
-            return true;
+            return (Success: true, BuildPolicy: buildPolicy);
         }
     }
 }
